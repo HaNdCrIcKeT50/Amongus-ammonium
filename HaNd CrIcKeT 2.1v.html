@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Cricket 2.1 - Full Game</title>
+    <title>Hand Cricket 2.1 - Multiplayer Game</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -99,9 +99,28 @@
 
         <!-- Generic Message Area -->
         <p class="text-lg text-gray-700 message" id="topMessage"></p>
+        <p class="text-xs text-gray-500" id="userIdDisplay"></p>
+
+
+        <!-- Lobby Screen -->
+        <div id="lobbyScreen" class="flex flex-col gap-4">
+            <h2 class="text-2xl font-semibold text-gray-800">Lobby</h2>
+            <button id="createGameBtn" class="btn btn-primary">Create New Game</button>
+            <p class="text-lg text-gray-700 mt-4">OR Join an Existing Game:</p>
+            <input type="text" id="joinGameIdInput" class="input-field" placeholder="Enter Game ID">
+            <button id="joinGameBtn" class="btn btn-primary">Join Game</button>
+        </div>
+
+        <!-- Waiting For Opponent Screen -->
+        <div id="waitingForOpponentScreen" class="hidden flex flex-col gap-4">
+            <h2 class="text-2xl font-semibold text-gray-800">Waiting for Opponent...</h2>
+            <p class="text-lg text-gray-700" id="gameIdDisplay">Game ID: </p>
+            <p class="text-lg text-gray-700">Share this ID with a friend to play!</p>
+        </div>
 
         <!-- Toss Screen -->
-        <div id="tossScreen" class="flex flex-col gap-4">
+        <div id="tossScreen" class="hidden flex flex-col gap-4">
+            <p class="text-lg text-gray-700" id="tossScreenMessage"></p>
             <p class="text-lg text-gray-700">Choose Odd or Even for the toss:</p>
             <div class="flex justify-center gap-4 flex-col-sm">
                 <button id="tossOddBtn" class="btn btn-primary">Odd</button>
@@ -121,6 +140,7 @@
 
         <!-- Player Game Choices Screen -->
         <div id="playerChoicesScreen" class="hidden flex flex-col gap-4">
+            <p class="text-lg text-gray-700" id="playerChoicesMessage"></p>
             <p class="text-lg text-gray-700">Choose your game mode:</p>
             <div class="flex justify-center gap-4 flex-col-sm">
                 <button id="chooseNormalModeBtn" class="btn btn-primary">Normal</button>
@@ -134,10 +154,10 @@
             <button id="confirmChoicesBtn" class="btn btn-primary mt-4">Confirm Choices</button>
         </div>
 
-        <!-- Computer Choices Confirmation Screen -->
-        <div id="computerChoicesScreen" class="hidden flex flex-col gap-4">
-            <p class="text-lg text-gray-700" id="computerChosenMessage"></p>
-            <button id="startInningsFromComputerBtn" class="btn btn-primary">Start Innings</button>
+        <!-- Game Choices Confirmation Screen (For opponent) -->
+        <div id="opponentChoicesScreen" class="hidden flex flex-col gap-4">
+            <p class="text-lg text-gray-700" id="opponentChosenMessage"></p>
+            <button id="startInningsFromOpponentBtn" class="btn btn-primary">Start Innings</button>
         </div>
 
         <!-- Gameplay Screen -->
@@ -145,7 +165,7 @@
             <p class="text-xl font-semibold text-gray-800" id="inningsHeader"></p>
             <p class="text-lg text-gray-700" id="targetMessage"></p>
             <p class="text-lg text-gray-700" id="currentInningMessage"></p>
-            <p class="text-lg text-gray-700" id="computerPlayDisplay"></p>
+            <p class="text-lg text-gray-700" id="playerVsOpponentDisplay"></p>
 
             <input type="number" id="playerGameplayInput" class="input-field" placeholder="Enter your number (1-10)" min="1" max="10">
             <button id="playTurnBtn" class="btn btn-primary">Play</button>
@@ -156,8 +176,8 @@
                     <p class="score-display text-indigo-600" id="playerScoreDisplay">0</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-gray-600 text-sm">Computer Score:</p>
-                    <p class="score-display text-red-600" id="computerScoreDisplay">0</p>
+                    <p class="text-gray-600 text-sm">Opponent Score:</p>
+                    <p class="score-display text-red-600" id="opponentScoreDisplay">0</p>
                 </div>
             </div>
             <p class="text-gray-600 text-sm" id="gameplayStatusMessage"></p>
@@ -179,11 +199,38 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Initialization ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        let app;
+        let db;
+        let auth;
+        let currentUser;
+        let currentUserId;
+        let currentGameId = null;
+        let unsubscribeGameListener = null; // To detach Firestore listener
+
         // --- DOM Elements ---
         const topMessage = document.getElementById('topMessage');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+
+        const lobbyScreen = document.getElementById('lobbyScreen');
+        const createGameBtn = document.getElementById('createGameBtn');
+        const joinGameIdInput = document.getElementById('joinGameIdInput');
+        const joinGameBtn = document.getElementById('joinGameBtn');
+
+        const waitingForOpponentScreen = document.getElementById('waitingForOpponentScreen');
+        const gameIdDisplay = document.getElementById('gameIdDisplay');
 
         const tossScreen = document.getElementById('tossScreen');
+        const tossScreenMessage = document.getElementById('tossScreenMessage');
         const tossOddBtn = document.getElementById('tossOddBtn');
         const tossEvenBtn = document.getElementById('tossEvenBtn');
         const tossInput = document.getElementById('tossInput');
@@ -195,25 +242,26 @@
         const proceedToChoicesBtn = document.getElementById('proceedToChoicesBtn');
 
         const playerChoicesScreen = document.getElementById('playerChoicesScreen');
+        const playerChoicesMessage = document.getElementById('playerChoicesMessage');
         const chooseNormalModeBtn = document.getElementById('chooseNormalModeBtn');
         const chooseCrazyModeBtn = document.getElementById('chooseCrazyModeBtn');
         const chooseBattingBtn = document.getElementById('chooseBattingBtn');
         const chooseBowlingBtn = document.getElementById('chooseBowlingBtn');
         const confirmChoicesBtn = document.getElementById('confirmChoicesBtn');
 
-        const computerChoicesScreen = document.getElementById('computerChoicesScreen');
-        const computerChosenMessage = document.getElementById('computerChosenMessage');
-        const startInningsFromComputerBtn = document.getElementById('startInningsFromComputerBtn');
+        const opponentChoicesScreen = document.getElementById('opponentChoicesScreen');
+        const opponentChosenMessage = document.getElementById('opponentChosenMessage');
+        const startInningsFromOpponentBtn = document.getElementById('startInningsFromOpponentBtn');
 
         const gameplayScreen = document.getElementById('gameplayScreen');
         const inningsHeader = document.getElementById('inningsHeader');
         const targetMessage = document.getElementById('targetMessage');
         const currentInningMessage = document.getElementById('currentInningMessage');
-        const computerPlayDisplay = document.getElementById('computerPlayDisplay');
+        const playerVsOpponentDisplay = document.getElementById('playerVsOpponentDisplay');
         const playerGameplayInput = document.getElementById('playerGameplayInput');
         const playTurnBtn = document.getElementById('playTurnBtn');
         const playerScoreDisplay = document.getElementById('playerScoreDisplay');
-        const computerScoreDisplay = document.getElementById('computerScoreDisplay');
+        const opponentScoreDisplay = document.getElementById('opponentScoreDisplay');
         const gameplayStatusMessage = document.getElementById('gameplayStatusMessage');
 
         const inningsBreakScreen = document.getElementById('inningsBreakScreen');
@@ -227,25 +275,9 @@
         const finalScoresSummary = document.getElementById('finalScoresSummary');
         const restartGameBtn = document.getElementById('restartGameBtn');
 
-        // --- Game State Variables ---
-        let gameMode = ''; // 'Normal' or 'Crazy'
-        let tossWinner = ''; // 'You' or 'Computer'
-        let gameTypeChoiceByTossWinner = ''; // 'Batting' or 'Bowling' (chosen by the toss winner)
 
-        let currentPlayerScore = 0; // Score of the player currently batting
-        let opponentScore = 0; // Score of the player currently bowling (i.e., target setter)
-
-        let playerOverallScore = 0;
-        let computerOverallScore = 0;
-
-        let currentInning = 1; // 1 or 2
-        let target = -1; // Target for second innings
-
-        let playerTossChoice = ''; // 'ODD' or 'EVEN'
-        let playerTossFinger = -1;
-
-        let playerIsBatting = false; // True if 'You' are batting, false if 'Computer' is batting
-        let currentPlayerInningRole = ''; // 'Batting' or 'Bowling' for the current player 'You'
+        // --- Game State Variables (mostly managed by Firestore snapshot) ---
+        let gameData = {}; // This object will hold the synchronized game state
 
         // --- Helper Functions ---
 
@@ -267,8 +299,9 @@
          */
         function showScreen(screenToShow) {
             const allScreens = [
-                tossScreen, tossResultScreen, playerChoicesScreen,
-                computerChoicesScreen, gameplayScreen, inningsBreakScreen, gameOverScreen
+                lobbyScreen, waitingForOpponentScreen, tossScreen, tossResultScreen,
+                playerChoicesScreen, opponentChoicesScreen, gameplayScreen,
+                inningsBreakScreen, gameOverScreen
             ];
             allScreens.forEach(screen => screen.classList.add('hidden'));
             screenToShow.classList.remove('hidden');
@@ -294,241 +327,523 @@
         }
 
         /**
+         * Gets the current player's role (player1 or player2) based on currentUserId.
+         * @returns {string} 'player1' or 'player2'
+         */
+        function getPlayerRole() {
+            if (!gameData || !currentUserId) return '';
+            return gameData.player1Id === currentUserId ? 'player1' : 'player2';
+        }
+
+        /**
+         * Gets the opponent's role.
+         * @returns {string} 'player1' or 'player2'
+         */
+        function getOpponentRole() {
+            if (!gameData || !currentUserId) return '';
+            return gameData.player1Id === currentUserId ? 'player2' : 'player1';
+        }
+
+        /**
          * Updates the score displays on the gameplay screen.
          */
         function updateScoreDisplays() {
-            playerScoreDisplay.textContent = playerOverallScore;
-            computerScoreDisplay.textContent = computerOverallScore;
+            const playerRole = getPlayerRole();
+            const opponentRole = getOpponentRole();
+
+            if (playerRole === 'player1') {
+                playerScoreDisplay.textContent = gameData.player1OverallScore || 0;
+                opponentScoreDisplay.textContent = gameData.player2OverallScore || 0;
+            } else {
+                playerScoreDisplay.textContent = gameData.player2OverallScore || 0;
+                opponentScoreDisplay.textContent = gameData.player1OverallScore || 0;
+            }
         }
 
-        // --- Game Flow Functions ---
+        // --- Firebase & Game State Management ---
 
         /**
-         * Initializes or restarts the game.
+         * Updates the game document in Firestore.
+         * @param {object} updates - Object containing fields to update.
          */
-        function startGame() {
-            gameMode = '';
-            tossWinner = '';
-            gameTypeChoiceByTossWinner = '';
-            currentPlayerScore = 0;
-            opponentScore = 0;
-            playerOverallScore = 0;
-            computerOverallScore = 0;
-            currentInning = 1;
-            target = -1;
-            playerTossChoice = '';
-            playerTossFinger = -1;
-            playerIsBatting = false;
-            currentPlayerInningRole = '';
+        async function updateGame(updates) {
+            if (!currentGameId || !db) {
+                console.error("Game ID or Firestore not initialized.");
+                return;
+            }
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/games`, currentGameId), updates);
+            } catch (e) {
+                console.error("Error updating game document: ", e);
+                topMessage.textContent = "Error updating game state. Please try again.";
+            }
+        }
 
-            tossInput.value = ''; // Clear toss input
-            playerGameplayInput.value = ''; // Clear gameplay input
-            updateScoreDisplays(); // Reset scores visually
+        /**
+         * Creates a new game document in Firestore.
+         */
+        async function createNewGame() {
+            if (!currentUserId) {
+                topMessage.textContent = "Please wait, authenticating...";
+                return;
+            }
+            try {
+                // Generate a simple, readable game ID
+                const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, newGameId);
 
-            showScreen(tossScreen);
-            topMessage.textContent = 'Welcome to Hand Cricket 2.1!';
+                await setDoc(gameDocRef, {
+                    gameId: newGameId,
+                    status: 'waiting',
+                    player1Id: currentUserId,
+                    player2Id: null,
+                    player1OverallScore: 0,
+                    player2OverallScore: 0,
+                    player1CurrentInningsScore: 0,
+                    player2CurrentInningsScore: 0,
+                    currentInning: 1,
+                    tossWinnerId: null,
+                    gameMode: null,
+                    firstInningsBatterId: null,
+                    currentBatterId: null,
+                    currentBowlerId: null,
+                    target: -1,
+                    player1TossChoice: null,
+                    player1TossFinger: -1,
+                    player2TossChoice: null,
+                    player2TossFinger: -1,
+                    player1LastMove: -1,
+                    player2LastMove: -1,
+                    gameplayStatusMessage: '',
+                    turnPlayerId: null, // Whose turn it is (for toss, choosing, playing)
+                    lastUpdated: Date.now()
+                });
+                currentGameId = newGameId;
+                gameIdDisplay.textContent = `Game ID: ${currentGameId}`;
+                showScreen(waitingForOpponentScreen);
+                topMessage.textContent = 'Game created! Share the ID with your friend.';
+                listenToGameChanges(); // Start listening for changes to this new game
+            } catch (e) {
+                console.error("Error creating new game: ", e);
+                topMessage.textContent = "Failed to create game. Please try again.";
+            }
+        }
+
+        /**
+         * Joins an existing game.
+         */
+        async function joinGame() {
+            const gameId = joinGameIdInput.value.trim();
+            if (!gameId) {
+                topMessage.textContent = "Please enter a Game ID.";
+                return;
+            }
+            if (!currentUserId) {
+                topMessage.textContent = "Please wait, authenticating...";
+                return;
+            }
+
+            try {
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, gameId);
+                const gameSnap = await getDoc(gameDocRef);
+
+                if (gameSnap.exists() && gameSnap.data().status === 'waiting' && !gameSnap.data().player2Id) {
+                    await updateDoc(gameDocRef, {
+                        player2Id: currentUserId,
+                        status: 'playing', // Game starts when 2nd player joins
+                        turnPlayerId: gameSnap.data().player1Id, // Player 1 starts the toss
+                        lastUpdated: Date.now()
+                    });
+                    currentGameId = gameId;
+                    topMessage.textContent = `Joined game ${gameId}!`;
+                    listenToGameChanges(); // Start listening
+                } else if (gameSnap.exists() && (gameSnap.data().player1Id === currentUserId || gameSnap.data().player2Id === currentUserId)) {
+                     // Rejoining own game
+                    currentGameId = gameId;
+                    topMessage.textContent = `Rejoining game ${gameId}.`;
+                    listenToGameChanges();
+                }
+                else {
+                    topMessage.textContent = "Game not found or already full.";
+                }
+            } catch (e) {
+                console.error("Error joining game: ", e);
+                topMessage.textContent = "Failed to join game. Check ID or try again.";
+            }
+        }
+
+        /**
+         * Sets up a real-time listener for the current game document.
+         */
+        function listenToGameChanges() {
+            if (unsubscribeGameListener) {
+                unsubscribeGameListener(); // Detach previous listener if any
+            }
+
+            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games`, currentGameId);
+            unsubscribeGameListener = onSnapshot(gameDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    gameData = docSnap.data();
+                    updateUIBasedOnGameState();
+                } else {
+                    console.log("Game document no longer exists.");
+                    topMessage.textContent = "Game ended or no longer exists.";
+                    startGame(); // Go back to lobby
+                }
+            }, (error) => {
+                console.error("Error listening to game changes: ", error);
+                topMessage.textContent = "Lost connection to game. Please restart.";
+            });
+        }
+
+        /**
+         * Main function to update UI based on the synchronized gameData.
+         */
+        function updateUIBasedOnGameState() {
+            if (!gameData || !currentUserId) {
+                return; // Not ready to update UI
+            }
+            userIdDisplay.textContent = `Your User ID: ${currentUserId}`; // Always display user ID
+
+            // Determine which player is 'you' and which is 'opponent'
+            const playerRole = getPlayerRole();
+            const opponentRole = getOpponentRole();
+            const isMyTurn = gameData.turnPlayerId === currentUserId;
+            const isGameHost = gameData.player1Id === currentUserId;
+
+            switch (gameData.status) {
+                case 'waiting':
+                    showScreen(waitingForOpponentScreen);
+                    gameIdDisplay.textContent = `Game ID: ${gameData.gameId}`;
+                    topMessage.textContent = 'Waiting for opponent to join...';
+                    break;
+                case 'playing':
+                    // Check if both players are present
+                    if (!gameData.player1Id || !gameData.player2Id) {
+                        showScreen(waitingForOpponentScreen);
+                        gameIdDisplay.textContent = `Game ID: ${gameData.gameId}`;
+                        topMessage.textContent = 'Waiting for opponent to join...';
+                        return;
+                    }
+
+                    // --- Game Phase: Toss ---
+                    if (gameData.tossWinnerId === null) {
+                        showScreen(tossScreen);
+                        tossOddBtn.disabled = !isMyTurn;
+                        tossEvenBtn.disabled = !isMyTurn;
+                        tossInput.disabled = !isMyTurn;
+                        tossPlayBtn.disabled = !isMyTurn;
+                        tossScreenMessage.textContent = isMyTurn ? 'It\'s your turn for the toss!' : `Waiting for ${gameData.player1Id === gameData.turnPlayerId ? 'Player 1' : 'Player 2'} to make toss choices...`;
+
+                        // Show opponent's choice if available
+                        const opponentTossChoice = opponentRole === 'player1' ? gameData.player1TossChoice : gameData.player2TossChoice;
+                        const opponentTossFinger = opponentRole === 'player1' ? gameData.player1TossFinger : gameData.player2TossFinger;
+
+                        if (opponentTossChoice) {
+                            topMessage.textContent = `Opponent chose ${opponentTossChoice}.`;
+                        } else if (!isMyTurn) {
+                            topMessage.textContent = 'Opponent is making their toss choice.';
+                        } else {
+                            topMessage.textContent = 'Choose Odd or Even for the toss.';
+                        }
+
+                        // If both have made toss choices, show result
+                        if (gameData.player1TossChoice && gameData.player1TossFinger !== -1 &&
+                            gameData.player2TossChoice && gameData.player2TossFinger !== -1) {
+                            resolveToss(); // This will determine winner and update gameData
+                        }
+
+                    }
+                    // --- Game Phase: Toss Result ---
+                    else if (gameData.tossWinnerId && !gameData.gameMode) {
+                        showScreen(tossResultScreen);
+                        const playerTossChoice = playerRole === 'player1' ? gameData.player1TossChoice : gameData.player2TossChoice;
+                        const playerTossFinger = playerRole === 'player1' ? gameData.player1TossFinger : gameData.player2TossFinger;
+                        const opponentTossChoice = opponentRole === 'player1' ? gameData.player1TossChoice : gameData.player2TossChoice;
+                        const opponentTossFinger = opponentRole === 'player1' ? gameData.player1TossFinger : gameData.player2TossFinger;
+
+                        const totalSum = (gameData.player1TossFinger || 0) + (gameData.player2TossFinger || 0);
+                        const isTotalEven = (totalSum % 2 === 0);
+                        const resultType = isTotalEven ? 'Even' : 'Odd';
+
+                        let tossResultMsg = `You put: ${playerTossFinger}, Opponent put: ${opponentTossFinger}. Total sum: ${totalSum}. It's an ${resultType}!`;
+                        tossDetailsMessage.textContent = tossResultMsg;
+
+                        if (gameData.tossWinnerId === currentUserId) {
+                            tossResultMessage.textContent = "You won the toss!";
+                            proceedToChoicesBtn.disabled = false;
+                            topMessage.textContent = "You won the toss! Proceed to choose your game.";
+                        } else {
+                            tossResultMessage.textContent = `${gameData.tossWinnerId} won the toss!`; // Ideally show username
+                            proceedToChoicesBtn.disabled = true; // Only toss winner proceeds
+                            topMessage.textContent = "Opponent won the toss. Waiting for their choice.";
+                        }
+
+                    }
+                    // --- Game Phase: Player Choices ---
+                    else if (gameData.tossWinnerId === currentUserId && !gameData.gameMode) {
+                        showScreen(playerChoicesScreen);
+                        playerChoicesMessage.textContent = 'You won the toss! Make your game choices.';
+
+                        // Visual feedback for selection
+                        chooseNormalModeBtn.classList.toggle('btn-secondary', gameData.gameMode !== 'Normal');
+                        chooseNormalModeBtn.classList.toggle('btn-primary', gameData.gameMode === 'Normal');
+                        chooseCrazyModeBtn.classList.toggle('btn-secondary', gameData.gameMode !== 'Crazy');
+                        chooseCrazyModeBtn.classList.toggle('btn-primary', gameData.gameMode === 'Crazy');
+
+                        const playerBatBowlChoice = playerRole === 'player1' ? gameData.player1GameTypeChoice : gameData.player2GameTypeChoice;
+                        chooseBattingBtn.classList.toggle('btn-secondary', playerBatBowlChoice !== 'Batting');
+                        chooseBattingBtn.classList.toggle('btn-primary', playerBatBowlChoice === 'Batting');
+                        chooseBowlingBtn.classList.toggle('btn-secondary', playerBatBowlChoice !== 'Bowling');
+                        chooseBowlingBtn.classList.toggle('btn-primary', playerBatBowlChoice === 'Bowling');
+
+                        confirmChoicesBtn.disabled = !(gameData.gameMode && (gameData.player1GameTypeChoice || gameData.player2GameTypeChoice));
+                        if (confirmChoicesBtn.disabled) {
+                            topMessage.textContent = 'Please choose both a mode and an action.';
+                        } else {
+                            topMessage.textContent = `You selected ${gameData.gameMode} mode and to ${playerBatBowlChoice}.`;
+                        }
+
+                    }
+                    // --- Game Phase: Opponent Choices Confirmation ---
+                    else if (gameData.tossWinnerId && gameData.tossWinnerId !== currentUserId && !gameData.gameMode) {
+                        showScreen(opponentChoicesScreen);
+                        const tossWinnerRole = gameData.tossWinnerId === gameData.player1Id ? 'player1' : 'player2';
+                        const tossWinnerGameMode = gameData[tossWinnerRole + 'GameMode'];
+                        const tossWinnerGameType = gameData[tossWinnerRole + 'GameTypeChoice'];
+                        opponentChosenMessage.textContent = `Opponent (${gameData.tossWinnerId}) chose ${tossWinnerGameMode} mode and to ${tossWinnerGameType}!`;
+                        startInningsFromOpponentBtn.disabled = !gameData.gameMode || !(gameData.player1GameTypeChoice || gameData.player2GameTypeChoice);
+                        topMessage.textContent = 'Waiting for opponent to confirm their choices.';
+                    }
+                    // --- Game Phase: Gameplay ---
+                    else {
+                        showScreen(gameplayScreen);
+                        updateScoreDisplays(); // Always update scores
+
+                        inningsHeader.textContent = `Innings ${gameData.currentInning}`;
+                        targetMessage.textContent = gameData.target !== -1 ? `Target: ${gameData.target} runs` : '';
+
+                        const isPlayerBatting = (gameData.currentBatterId === currentUserId);
+                        currentInningMessage.textContent = isPlayerBatting ? "You are Batting!" : "Opponent is Batting!";
+
+                        // Display last moves
+                        playerVsOpponentDisplay.textContent = `Your last play: ${playerRole === 'player1' ? gameData.player1LastMove : gameData.player2LastMove} | Opponent's last play: ${opponentRole === 'player1' ? gameData.player1LastMove : gameData.player2LastMove}`;
+                        if (gameData.gameplayStatusMessage) {
+                            gameplayStatusMessage.textContent = gameData.gameplayStatusMessage;
+                        } else {
+                            gameplayStatusMessage.textContent = `It's ${isPlayerBatting ? 'your' : 'opponent\'s'} turn.`;
+                        }
+
+                        // Enable/disable input and button based on turn
+                        playerGameplayInput.disabled = !isMyTurn;
+                        playTurnBtn.disabled = !isMyTurn;
+                        if (isMyTurn) {
+                            playerGameplayInput.focus();
+                        }
+                    }
+                    break;
+                case 'innings_break':
+                    showScreen(inningsBreakScreen);
+                    inningsBreakMessage.textContent = `--- End of 1st Innings ---`;
+                    const firstInningsBatterRole = gameData.firstInningsBatterId === gameData.player1Id ? 'player1' : 'player2';
+                    const firstInningsScore = firstInningsBatterRole === 'player1' ? gameData.player1OverallScore : gameData.player2OverallScore;
+                    const firstInningsBatterName = firstInningsBatterRole === playerRole ? 'Your' : 'Opponent\'s';
+
+                    inningsBreakScore.textContent = `${firstInningsBatterName} Score: ${firstInningsScore} runs.`;
+                    inningsBreakTarget.textContent = `Target for ${firstInningsBatterRole === playerRole ? 'Opponent' : 'You'}: ${gameData.target} runs.`;
+                    startSecondInningsBtn.disabled = !isGameHost; // Only host proceeds (arbitrary choice)
+                    topMessage.textContent = isGameHost ? 'Click to start second innings.' : 'Waiting for host to start second innings.';
+                    break;
+                case 'ended':
+                    endGame(); // Directly call endGame, which will show gameOverScreen
+                    break;
+                default:
+                    showScreen(lobbyScreen);
+                    break;
+            }
+        }
+
+
+        /**
+         * Resolves the toss once both players have made their choices.
+         */
+        async function resolveToss() {
+            if (gameData.player1TossChoice && gameData.player1TossFinger !== -1 &&
+                gameData.player2TossChoice && gameData.player2TossFinger !== -1 &&
+                gameData.tossWinnerId === null) // Ensure toss hasn't been resolved yet
+            {
+                const totalSum = gameData.player1TossFinger + gameData.player2TossFinger;
+                const isTotalEven = (totalSum % 2 === 0);
+
+                let winnerId = null;
+                if ((isTotalEven && gameData.player1TossChoice === 'EVEN') || (!isTotalEven && gameData.player1TossChoice === 'ODD')) {
+                    winnerId = gameData.player1Id;
+                } else {
+                    winnerId = gameData.player2Id;
+                }
+
+                await updateGame({
+                    tossWinnerId: winnerId,
+                    turnPlayerId: winnerId, // Turn goes to toss winner to make game choices
+                    lastUpdated: Date.now()
+                });
+            }
         }
 
         /**
          * Handles the player's odd/even choice for the toss.
          * @param {string} choice 'ODD' or 'EVEN'
          */
-        function handleTossOddEvenChoice(choice) {
-            playerTossChoice = choice;
-            topMessage.textContent = `You chose ${choice}. Now enter your finger count.`;
+        async function handleTossOddEvenChoice(choice) {
+            if (gameData.turnPlayerId !== currentUserId) {
+                topMessage.textContent = "It's not your turn for the toss.";
+                return;
+            }
+
+            const playerRole = getPlayerRole();
+            const updateField = `${playerRole}TossChoice`;
+
+            await updateGame({ [updateField]: choice, lastUpdated: Date.now() });
         }
 
         /**
          * Handles the player's finger count input for the toss and determines the winner.
          */
-        function handleTossPlay() {
-            if (!playerTossChoice) {
-                topMessage.textContent = 'Please choose Odd or Even first.';
+        async function handleTossPlay() {
+            if (gameData.turnPlayerId !== currentUserId) {
+                topMessage.textContent = "It's not your turn for the toss.";
                 return;
             }
 
             const playerFingerCount = getValidInput(tossInput, 0, 10);
             if (playerFingerCount === null) return;
-            playerTossFinger = playerFingerCount;
 
-            const computerFingerCount = getRandomInt(0, 10);
-            const totalSum = playerFingerCount + computerFingerCount;
-            const isTotalEven = (totalSum % 2 === 0);
+            const playerRole = getPlayerRole();
+            const updateField = `${playerRole}TossFinger`;
 
-            let tossResultText = '';
-            let playerWonToss = false;
-
-            if (isTotalEven && playerTossChoice === 'EVEN') {
-                playerWonToss = true;
-                tossResultText = "It's an Even!";
-            } else if (!isTotalEven && playerTossChoice === 'ODD') {
-                playerWonToss = true;
-                tossResultText = "It's an Odd!";
-            } else {
-                if (isTotalEven) {
-                    tossResultText = "It's an Even!";
-                } else {
-                    tossResultText = "It's an Odd!";
-                }
-            }
-
-            tossResultMessage.textContent = tossResultText;
-            tossDetailsMessage.textContent = `You put: ${playerFingerCount}, Computer put: ${computerFingerCount}. Total sum: ${totalSum}.`;
-
-            if (playerWonToss) {
-                tossWinner = 'You';
-                tossResultMessage.textContent += " You won the toss!";
-            } else {
-                tossWinner = 'Computer';
-                tossResultMessage.textContent += " Computer won the toss!";
-            }
-            showScreen(tossResultScreen);
+            await updateGame({ [updateField]: playerFingerCount, lastUpdated: Date.now() });
         }
 
         /**
-         * Proceeds after toss result, either to player choices or computer choices.
+         * Proceeds after toss result. Only toss winner can trigger.
          */
-        function proceedToGameChoices() {
-            if (tossWinner === 'You') {
-                gameMode = ''; // Reset selection
-                gameTypeChoiceByTossWinner = ''; // Reset selection
-                confirmChoicesBtn.classList.add('hidden'); // Hide until valid choices are made
-                chooseNormalModeBtn.classList.remove('btn-secondary');
-                chooseNormalModeBtn.classList.add('btn-primary');
-                chooseCrazyModeBtn.classList.remove('btn-secondary');
-                chooseCrazyModeBtn.classList.add('btn-primary');
-                chooseBattingBtn.classList.remove('btn-secondary');
-                chooseBattingBtn.classList.add('btn-primary');
-                chooseBowlingBtn.classList.remove('btn-secondary');
-                chooseBowlingBtn.classList.add('btn-primary');
-
-                showScreen(playerChoicesScreen);
-                topMessage.textContent = 'You won the toss! Make your game choices.';
-            } else {
-                computerMakesGameChoices();
+        async function proceedToGameChoices() {
+            if (gameData.tossWinnerId !== currentUserId) {
+                topMessage.textContent = "Only the toss winner can proceed.";
+                return;
             }
+            updateUIBasedOnGameState(); // Trigger UI update to playerChoicesScreen
         }
 
         /**
          * Allows player to select game mode.
          * @param {string} mode 'Normal' or 'Crazy'
          */
-        function selectPlayerGameMode(mode) {
-            gameMode = mode;
-            // Visual feedback for selection
-            chooseNormalModeBtn.classList.toggle('btn-secondary', mode !== 'Normal');
-            chooseNormalModeBtn.classList.toggle('btn-primary', mode === 'Normal');
-            chooseCrazyModeBtn.classList.toggle('btn-secondary', mode !== 'Crazy');
-            chooseCrazyModeBtn.classList.toggle('btn-primary', mode === 'Crazy');
-            checkPlayerChoicesMade();
+        async function selectPlayerGameMode(mode) {
+            if (gameData.tossWinnerId !== currentUserId) return; // Only toss winner can choose
+            await updateGame({ gameMode: mode, lastUpdated: Date.now() });
         }
 
         /**
          * Allows player to select batting or bowling.
          * @param {string} type 'Batting' or 'Bowling'
          */
-        function selectPlayerGameType(type) {
-            gameTypeChoiceByTossWinner = type;
-            // Visual feedback for selection
-            chooseBattingBtn.classList.toggle('btn-secondary', type !== 'Batting');
-            chooseBattingBtn.classList.toggle('btn-primary', type === 'Batting');
-            chooseBowlingBtn.classList.toggle('btn-secondary', type !== 'Bowling');
-            chooseBowlingBtn.classList.toggle('btn-primary', type === 'Bowling');
-            checkPlayerChoicesMade();
-        }
-
-        /**
-         * Checks if both player choices are made and enables confirm button.
-         */
-        function checkPlayerChoicesMade() {
-            if (gameMode && gameTypeChoiceByTossWinner) {
-                confirmChoicesBtn.classList.remove('hidden');
-                topMessage.textContent = `You selected ${gameMode} mode and to ${gameTypeChoiceByTossWinner}.`;
-            } else {
-                confirmChoicesBtn.classList.add('hidden');
-                topMessage.textContent = 'Please choose both a mode and an action.';
-            }
+        async function selectPlayerGameType(type) {
+            if (gameData.tossWinnerId !== currentUserId) return; // Only toss winner can choose
+            const playerRole = getPlayerRole();
+            await updateGame({ [`${playerRole}GameTypeChoice`]: type, lastUpdated: Date.now() });
         }
 
         /**
          * Confirms player's choices and starts the first innings.
          */
-        function confirmPlayerChoices() {
-            if (gameMode && gameTypeChoiceByTossWinner) {
-                startFirstInnings();
-            } else {
+        async function confirmPlayerChoices() {
+            if (gameData.tossWinnerId !== currentUserId) {
+                topMessage.textContent = "You are not the toss winner.";
+                return;
+            }
+
+            const playerRole = getPlayerRole();
+            const opponentRole = getOpponentRole();
+            const playerGameTypeChoice = gameData[`${playerRole}GameTypeChoice`];
+
+            if (!gameData.gameMode || !playerGameTypeChoice) {
                 topMessage.textContent = 'Please make both mode and Bat/Bowl choices.';
-            }
-        }
-
-        /**
-         * Computer randomly makes its game mode and bat/bowl choices.
-         */
-        function computerMakesGameChoices() {
-            gameMode = getRandomInt(0, 1) === 0 ? 'Normal' : 'Crazy';
-            gameTypeChoiceByTossWinner = getRandomInt(0, 1) === 0 ? 'Batting' : 'Bowling';
-
-            computerChosenMessage.textContent = `Computer chose ${gameMode} mode and to ${gameTypeChoiceByTossWinner}!`;
-            showScreen(computerChoicesScreen);
-        }
-
-        /**
-         * Starts the first innings based on the toss winner's choice.
-         */
-        function startFirstInnings() {
-            currentPlayerScore = 0;
-            opponentScore = 0; // Opponent score is always 0 at start of an innings
-            currentInning = 1;
-            target = -1; // No target for first innings
-
-            // Determine who is batting/bowling for the current innings based on toss winner's choice
-            if ((tossWinner === 'You' && gameTypeChoiceByTossWinner === 'Batting') ||
-                (tossWinner === 'Computer' && gameTypeChoiceByTossWinner === 'Bowling')) {
-                playerIsBatting = true; // You are batting
-                currentPlayerInningRole = 'Batting';
-            } else {
-                playerIsBatting = false; // Computer is batting
-                currentPlayerInningRole = 'Bowling';
+                return;
             }
 
-            updateGameplayScreen();
-            showScreen(gameplayScreen);
-            playTurnBtn.disabled = false;
-            playerGameplayInput.value = '';
-            playerGameplayInput.focus();
+            let firstInningsBatterId;
+            let firstInningsBowlerId;
+
+            if (playerGameTypeChoice === 'Batting') {
+                firstInningsBatterId = currentUserId;
+                firstInningsBowlerId = gameData[opponentRole + 'Id'];
+            } else { // Player chose Bowling
+                firstInningsBatterId = gameData[opponentRole + 'Id'];
+                firstInningsBowlerId = currentUserId;
+            }
+
+            await updateGame({
+                firstInningsBatterId: firstInningsBatterId,
+                currentBatterId: firstInningsBatterId,
+                currentBowlerId: firstInningsBowlerId,
+                player1CurrentInningsScore: 0, // Reset for new innings
+                player2CurrentInningsScore: 0, // Reset for new innings
+                currentInning: 1,
+                target: -1,
+                gameplayStatusMessage: '',
+                turnPlayerId: firstInningsBatterId, // First batter plays first
+                lastUpdated: Date.now()
+            });
         }
 
         /**
-         * Updates the gameplay screen UI elements based on current game state.
+         * Starts the first innings (triggered by opponent of toss winner after choices are made)
          */
-        function updateGameplayScreen() {
-            inningsHeader.textContent = `Innings ${currentInning}`;
-            targetMessage.textContent = target !== -1 ? `Target: ${target} runs` : '';
-            currentInningMessage.textContent = playerIsBatting ? "You are Batting!" : "Computer is Batting!";
-
-            // Update global scores (displayed on screen)
-            playerScoreDisplay.textContent = playerOverallScore;
-            computerScoreDisplay.textContent = computerOverallScore;
+        async function startInningsFromOpponent() {
+            // This button is only enabled when the other player has already made choices.
+            // The game state will already be configured by the toss winner's 'confirmChoices'.
+            // This button just serves as a visual "OK, let's go" for the non-toss-winner.
+            // No direct state change needed here, the listener will transition.
+            topMessage.textContent = "Starting innings...";
         }
+
 
         /**
          * Plays a single turn of the game.
          */
-        function playTurn() {
+        async function playTurn() {
+            if (gameData.turnPlayerId !== currentUserId) {
+                topMessage.textContent = "It's not your turn.";
+                return;
+            }
+
             const playerNumber = getValidInput(playerGameplayInput, 1, 10);
             if (playerNumber === null) return;
 
-            const computerNumber = getRandomInt(1, 10);
-            computerPlayDisplay.textContent = `Computer put: ${computerNumber}`;
+            const computerNumber = getRandomInt(1, 10); // This is now opponent's number
+            const playerRole = getPlayerRole();
+            const opponentRole = getOpponentRole();
+
+            let currentBatterScore = (gameData.currentBatterId === gameData.player1Id) ? gameData.player1CurrentInningsScore : gameData.player2CurrentInningsScore;
+            let currentBatterId = gameData.currentBatterId;
 
             let playerOut = false;
             let currentRunScored = 0;
+            let gameplayMsg = '';
 
-            if (gameMode === 'Normal') {
+            const playerLastMoveField = `${playerRole}LastMove`;
+            const opponentLastMoveField = `${opponentRole}LastMove`;
+
+            // Determine current player's action (Batting/Bowling for *this turn*)
+            const isPlayerCurrentBatter = (currentBatterId === currentUserId);
+
+            // Logic for comparing numbers to determine runs or out
+            if (gameData.gameMode === 'Normal') {
                 if (playerNumber === computerNumber) {
                     playerOut = true;
                 } else {
-                    currentRunScored = playerIsBatting ? playerNumber : computerNumber;
+                    currentRunScored = isPlayerCurrentBatter ? playerNumber : computerNumber;
                 }
             } else { // Crazy Mode
                 if (Math.abs(playerNumber - computerNumber) === 1) { // If numbers are one apart
@@ -536,75 +851,75 @@
                 } else if (playerNumber === computerNumber) { // If numbers are same (Crazy rule: multiply)
                     currentRunScored = playerNumber * computerNumber;
                 } else { // Neither out nor same, just add (Crazy rule: normal add)
-                    currentRunScored = playerIsBatting ? playerNumber : computerNumber;
+                    currentRunScored = isPlayerCurrentBatter ? playerNumber : computerNumber;
                 }
             }
 
             if (playerOut) {
-                gameplayStatusMessage.textContent = playerIsBatting ?
-                    `You put ${playerNumber}, Computer put ${computerNumber}. You are OUT!` :
-                    `You put ${playerNumber}, Computer put ${computerNumber}. Computer is OUT!`;
-                playerGameplayInput.disabled = true;
-                playTurnBtn.disabled = true;
-                if (playerIsBatting) {
-                    playerOverallScore = currentPlayerScore;
-                } else {
-                    computerOverallScore = currentPlayerScore;
-                }
-                updateScoreDisplays();
+                gameplayMsg = isPlayerCurrentBatter ?
+                    `You put ${playerNumber}, Opponent put ${computerNumber}. You are OUT!` :
+                    `You put ${playerNumber}, Opponent put ${computerNumber}. Opponent is OUT!`;
+                // Score for this innings is finalized when out
+                const inningsScoreUpdateField = currentBatterId === gameData.player1Id ? 'player1OverallScore' : 'player2OverallScore';
+                await updateGame({
+                    gameplayStatusMessage: gameplayMsg,
+                    [playerLastMoveField]: playerNumber,
+                    [opponentLastMoveField]: computerNumber,
+                    [inningsScoreUpdateField]: currentBatterScore, // Finalize current innings score as overall score for 1st innings
+                    turnPlayerId: null, // No one's turn until innings ends/swaps
+                    lastUpdated: Date.now()
+                });
                 setTimeout(endCurrentInnings, 1500); // Small delay before ending innings
             } else {
-                currentPlayerScore += currentRunScored;
-                gameplayStatusMessage.textContent = `${playerIsBatting ? 'You' : 'Computer'} scored ${currentRunScored} runs. Current score: ${currentPlayerScore}.`;
+                currentBatterScore += currentRunScored;
+                gameplayMsg = `${isPlayerCurrentBatter ? 'You' : 'Opponent'} scored ${currentRunScored} runs. Current score: ${currentBatterScore}.`;
 
-                if (currentInning === 2 && currentPlayerScore >= target) {
-                    gameplayStatusMessage.textContent = `${playerIsBatting ? 'You' : 'Computer'} reached the target of ${target - 1} runs!`;
-                    if (playerIsBatting) {
-                        playerOverallScore = currentPlayerScore;
-                    } else {
-                        computerOverallScore = currentPlayerScore;
-                    }
-                    updateScoreDisplays();
-                    playerGameplayInput.disabled = true;
-                    playTurnBtn.disabled = true;
+                const inningsScoreUpdateField = currentBatterId === gameData.player1Id ? 'player1CurrentInningsScore' : 'player2CurrentInningsScore';
+
+                const updates = {
+                    [inningsScoreUpdateField]: currentBatterScore,
+                    gameplayStatusMessage: gameplayMsg,
+                    [playerLastMoveField]: playerNumber,
+                    [opponentLastMoveField]: computerNumber,
+                    turnPlayerId: (currentBatterId === gameData.player1Id) ? gameData.player2Id : gameData.player1Id, // Swap turn
+                    lastUpdated: Date.now()
+                };
+
+                // Check for target in 2nd innings
+                if (gameData.currentInning === 2 && currentBatterScore >= gameData.target) {
+                    gameplayMsg = `${isPlayerCurrentBatter ? 'You' : 'Opponent'} reached the target of ${gameData.target - 1} runs!`;
+                    updates.gameplayStatusMessage = gameplayMsg;
+                    updates.status = 'ended'; // Game ends
+                    updates[inningsScoreUpdateField] = currentBatterScore; // Finalize score
+                    updates.turnPlayerId = null;
+                }
+
+                await updateGame(updates);
+                if (gameData.currentInning === 2 && currentBatterScore >= gameData.target) {
                     setTimeout(endGame, 1500);
                 }
             }
             playerGameplayInput.value = ''; // Clear input for next turn
-            updateScoreDisplays(); // Update scores after each play
         }
 
         /**
          * Ends the current innings and transitions to break screen or game over.
          */
-        function endCurrentInnings() {
-            if (currentInning === 1) {
-                if (playerIsBatting) { // Player batted first innings
-                    playerOverallScore = currentPlayerScore;
-                } else { // Computer batted first innings
-                    computerOverallScore = currentPlayerScore;
-                }
+        async function endCurrentInnings() {
+            if (gameData.currentInning === 1) {
+                // Determine current batter's score and update overall score
+                const currentBatterOverallScoreField = gameData.currentBatterId === gameData.player1Id ? 'player1OverallScore' : 'player2OverallScore';
+                const currentBatterInningsScore = gameData.currentBatterId === gameData.player1Id ? gameData.player1CurrentInningsScore : gameData.player2CurrentInningsScore;
 
-                target = currentPlayerScore + 1; // Target for second innings
-                inningsBreakMessage.textContent = `--- End of 1st Innings ---`;
-                inningsBreakScore.textContent = `${playerIsBatting ? 'Your Score' : 'Computer Score'}: ${currentPlayerScore} runs.`;
-                inningsBreakTarget.textContent = `Target for ${playerIsBatting ? 'Computer' : 'You'}: ${target} runs.`;
-
-                // Swap roles for second innings
-                playerIsBatting = !playerIsBatting;
-                currentPlayerInningRole = playerIsBatting ? 'Batting' : 'Bowling';
-                currentInning = 2;
-
-                showScreen(inningsBreakScreen);
+                await updateGame({
+                    [currentBatterOverallScoreField]: currentBatterInningsScore,
+                    target: currentBatterInningsScore + 1, // Target for second innings
+                    status: 'innings_break',
+                    turnPlayerId: gameData.player1Id, // Player 1 (host) gets to click 'Start Second Innings'
+                    lastUpdated: Date.now()
+                });
             } else {
-                // This means an 'out' happened in 2nd innings without reaching target, or target was reached.
-                // If target was reached, endGame() is called directly from playTurn.
-                // If out before target, then the player batting in 2nd innings did not win.
-                if (playerIsBatting) { // You were batting in 2nd innings and got out before target
-                    playerOverallScore = currentPlayerScore;
-                } else { // Computer was batting in 2nd innings and got out before target
-                    computerOverallScore = currentPlayerScore;
-                }
+                // Second innings ended, determine winner or tie and go to game over
                 endGame();
             }
         }
@@ -612,42 +927,80 @@
         /**
          * Starts the second innings.
          */
-        function startSecondInnings() {
-            currentPlayerScore = 0; // Reset score for the new batting player
-            updateGameplayScreen();
-            showScreen(gameplayScreen);
-            playerGameplayInput.disabled = false;
-            playTurnBtn.disabled = false;
-            playerGameplayInput.value = '';
-            playerGameplayInput.focus();
+        async function startSecondInnings() {
+            if (gameData.player1Id !== currentUserId) { // Only host can start second innings
+                topMessage.textContent = "Only the game host can start the second innings.";
+                return;
+            }
+
+            const player1OldRoleIsBatter = gameData.firstInningsBatterId === gameData.player1Id;
+            let newBatterId = player1OldRoleIsBatter ? gameData.player2Id : gameData.player1Id;
+            let newBowlerId = player1OldRoleIsBatter ? gameData.player1Id : gameData.player2Id;
+
+            await updateGame({
+                currentInning: 2,
+                currentBatterId: newBatterId,
+                currentBowlerId: newBowlerId,
+                player1CurrentInningsScore: 0, // Reset current innings score
+                player2CurrentInningsScore: 0, // Reset current innings score
+                gameplayStatusMessage: '',
+                status: 'playing', // Back to playing state
+                turnPlayerId: newBatterId, // New batter plays first
+                lastUpdated: Date.now()
+            });
         }
 
         /**
          * Ends the game and displays final results.
          */
-        function endGame() {
+        async function endGame() {
             showScreen(gameOverScreen);
-            let finalPlayerScore = 0;
-            let finalComputerScore = 0;
+            const player1FinalScore = gameData.player1OverallScore;
+            const player2FinalScore = gameData.player2OverallScore;
 
-            // Determine which variable holds player's final score and computer's final score
-            // based on who batted first in the match and the overall scores accumulated.
-            // Simplified: playerOverallScore and computerOverallScore hold the actual final scores.
-            finalPlayerScore = playerOverallScore;
-            finalComputerScore = computerOverallScore;
+            const playerRole = getPlayerRole();
+            const finalPlayerScore = playerRole === 'player1' ? player1FinalScore : player2FinalScore;
+            const finalOpponentScore = playerRole === 'player1' ? player2FinalScore : player1FinalScore;
 
-            finalScoresSummary.textContent = `Your Score: ${finalPlayerScore} | Computer's Score: ${finalComputerScore}`;
+            finalScoresSummary.textContent = `Your Score: ${finalPlayerScore} | Opponent's Score: ${finalOpponentScore}`;
 
-            if (finalPlayerScore > finalComputerScore) {
+            if (finalPlayerScore > finalOpponentScore) {
                 finalResultHeader.textContent = "🥳 You WIN the match! 🎉";
-            } else if (finalComputerScore > finalPlayerScore) {
-                finalResultHeader.textContent = "😞 Computer WINS the match. Better luck next time!";
+            } else if (finalOpponentScore > finalPlayerScore) {
+                finalResultHeader.textContent = "😞 Opponent WINS the match. Better luck next time!";
             } else {
                 finalResultHeader.textContent = "🤝 It's a TIE! 🤝";
             }
+            // Update game status to 'ended' if not already
+            if (gameData.status !== 'ended') {
+                await updateGame({ status: 'ended', lastUpdated: Date.now() });
+            }
+        }
+
+        /**
+         * Initializes or restarts the game (back to lobby).
+         */
+        function startGame() {
+            if (unsubscribeGameListener) {
+                unsubscribeGameListener();
+                unsubscribeGameListener = null;
+            }
+            currentGameId = null;
+            gameData = {}; // Clear game state
+            joinGameIdInput.value = '';
+            playerGameplayInput.value = '';
+            topMessage.textContent = 'Welcome to Hand Cricket 2.1!';
+            showScreen(lobbyScreen);
+            userIdDisplay.textContent = `Your User ID: ${currentUserId || 'Authenticating...'}`;
         }
 
         // --- Event Listeners ---
+        createGameBtn.addEventListener('click', createNewGame);
+        joinGameBtn.addEventListener('click', joinGame);
+        joinGameIdInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinGame();
+        });
+
         tossOddBtn.addEventListener('click', () => handleTossOddEvenChoice('ODD'));
         tossEvenBtn.addEventListener('click', () => handleTossOddEvenChoice('EVEN'));
         tossPlayBtn.addEventListener('click', handleTossPlay);
@@ -663,7 +1016,7 @@
         chooseBowlingBtn.addEventListener('click', () => selectPlayerGameType('Bowling'));
         confirmChoicesBtn.addEventListener('click', confirmPlayerChoices);
 
-        startInningsFromComputerBtn.addEventListener('click', startFirstInnings);
+        startInningsFromOpponentBtn.addEventListener('click', startInningsFromOpponent);
 
         playTurnBtn.addEventListener('click', playTurn);
         playerGameplayInput.addEventListener('keypress', (e) => {
@@ -673,8 +1026,42 @@
         startSecondInningsBtn.addEventListener('click', startSecondInnings);
         restartGameBtn.addEventListener('click', startGame);
 
-        // --- Initialize the game on page load ---
-        window.onload = startGame;
+        // --- Firebase Auth & Initial Setup ---
+        async function initFirebaseAndAuth() {
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                } else {
+                    console.error("Firebase config is empty. Cannot initialize Firebase.");
+                    topMessage.textContent = "Firebase configuration missing. Cannot start the game.";
+                    return;
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        currentUserId = user.uid;
+                        userIdDisplay.textContent = `Your User ID: ${currentUserId}`;
+                        startGame(); // Start the game flow (to lobby) once authenticated
+                    } else {
+                        // Sign in anonymously if no user is found
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Error initializing Firebase or signing in: ", e);
+                topMessage.textContent = "Failed to initialize game services. Please refresh.";
+            }
+        }
+
+        // Initialize on window load
+        window.onload = initFirebaseAndAuth;
     </script>
 </body>
 </html>
