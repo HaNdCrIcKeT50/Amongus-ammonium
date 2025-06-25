@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Cricket 2.21v - Tinted Blue/Green Theme</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Light background for the overall page */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            box-sizing: border-box;
+            overflow: hidden; /* Prevent body scroll due to splash screen */
+        }
+        .game-container {
+            background-color: #2F4F4F; /* Dark Slate Gray - Deep Muted Teal */
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); /* Deeper shadow */
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            color: #D4DFE6; /* Light bluish gray for general content text */
+        }
+        .game-container h1 {
+            color: #E0FFFF; /* LightCyan for main title */
+        }
+        .game-container .text-2xl,
+        .game-container .text-xl {
+            color: #E0FFFF; /* LightCyan for headings and important messages */
+        }
+        .game-container .text-lg,
+        .game-container .text-sm {
+            color: #D4DFE6; /* Light bluish gray for general text */
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            flex-grow: 1; /* Allow buttons to grow */
+        }
+        .btn-primary {
+            background-color: #2E8B57; /* Sea Green (Muted Green) */
+            color: #FFFFFF; /* White text for contrast on darker green */
+            border: 1px solid #226E43; /* Darker Sea Green border */
+        }
+        .btn-primary:hover {
+            background-color: #226E43; /* Darker Sea Green on hover */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+        }
+        .btn-secondary {
+            background-color: #4682B4; /* Steel Blue (Muted Blue) */
+            color: #F8FAFC; /* Light text on dark gray */
+            border: 1px solid #306090; /* Darker Steel Blue border */
+        }
+        .btn-secondary:hover {
+            background-color: #306090; /* Even darker Steel Blue on hover */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.1);
+        }
+        .input-field {
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            border: 1px solid #55626D; /* Darker border for input */
+            width: 100%;
+            text-align: center;
+            font-size: 1.125rem;
+            background-color: #36454F; /* Charcoal background for input */
+            color: #F3F4F6; /* Light text for input */
+        }
+        .message {
+            font-size: 1.125rem;
+            color: #D4DFE6; /* Light bluish gray for messages */
+            min-height: 2.5rem; /* Ensure consistent height for messages */
+        }
+        .score-display {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #2E8B57; /* Sea Green for player scores */
+        }
+        .computer-score-display { /* Specific class for computer score */
+            color: #D4DFE6; /* Light bluish gray for computer scores */
+        }
+        .current-batter-score-display { /* Specific class for current batter score */
+            color: #34D399; /* Green for current batter score (retained for distinction) */
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* Styles for the cricket balls (number buttons) */
+        .cricket-ball-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); /* Responsive grid for balls */
+            gap: 1rem;
+            justify-items: center;
+            align-items: center;
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .cricket-ball {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #4169E1, #3354C0); /* Royal Blue tones */
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1);
+            transition: all 0.15s ease-in-out;
+            border: 3px solid #2A4B9F; /* Darker Royal Blue border */
+            user-select: none; /* Prevent text selection */
+        }
+        .cricket-ball:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), inset 0 3px 6px rgba(255, 255, 255, 0.2);
+            background: linear-gradient(145deg, #3354C0, #2A4B9F);
+        }
+        .cricket-ball:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+            background: #2A4B9F;
+        }
+        .cricket-ball.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: linear-gradient(145deg, #9ca3af, #6b7280); /* Gray out when disabled */
+            box-shadow: none;
+            border: 3px solid #4b5563;
+        }
+
+        /* Splash Screen Styles */
+        .splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7); /* Dark overlay */
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+        .splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none; /* Prevent interaction when hidden */
+        }
+        .splash-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://www.royalchallengers.com/PRRCB01/public/styles/1061x767_landscape/public/2025-06/_AIL8656.jpg?itok=vcdm3E9V');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.7; /* Make it slightly transparent under the text */
+            z-index: -1; /* Behind content */
+        }
+        .splash-content {
+            z-index: 1; /* Above background */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .splash-title {
+            font-size: 4rem; /* Larger title */
+            font-weight: bold;
+            color: #DAA520; /* Muted Gold for title */
+            text-shadow: 0 0 15px rgba(255, 255, 0, 0.5); /* Soft glow effect */
+        }
+        .splash-play-btn {
+            font-size: 2rem;
+            padding: 1rem 3rem;
+            border-radius: 9999px;
+            background-color: #34D399; /* A slightly more subdued green for play button */
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease-in-out;
+        }
+        .splash-play-btn:hover {
+            background-color: #059669;
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.4);
+        }
+        .splash-play-btn:active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .game-container {
+                padding: 1.5rem;
+            }
+            .flex-col-sm {
+                flex-direction: column;
+            }
+            .flex-col-sm .btn {
+                width: 100%;
+            }
+            .cricket-ball {
+                width: 50px;
+                height: 50px;
+                font-size: 1.5rem;
+            }
+            .cricket-ball-container {
+                gap: 0.75rem;
+            }
+            .splash-title {
+                font-size: 2.5rem;
+            }
+            .splash-play-btn {
+                font-size: 1.5rem;
+                padding: 0.75rem 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div id="splashScreen" class="splash-screen">
+        <div class="splash-background"></div>
+        <div class="splash-content">
+            <h1 class="splash-title">HaNd CrIcKeT 2.21v</h1>
+            <p class="text-2xl font-semibold">The Ultimate IPL Experience!</p>
+            <button id="playGameBtn" class="splash-play-btn">
+                PLAY
+            </button>
+        </div>
+    </div>
+
+    <div class="game-container hidden"> <!-- Game container starts hidden -->
+        <h1 class="text-4xl font-extrabold text-white mb-4">HaNd CrIcKeT <span class="text-indigo-600">2.21v</span></h1>
+
+        <!-- Generic Message Area -->
+        <p class="text-lg message" id="topMessage"></p>
+
+        <!-- Toss Screen -->
+        <div id="tossScreen" class="flex flex-col gap-4">
+            <p class="text-lg">Choose Odd or Even for the toss:</p>
+            <div class="flex justify-center gap-4 flex-col-sm">
+                <button id="tossOddBtn" class="btn btn-primary">Odd</button>
+                <button id="tossEvenBtn" class="btn btn-primary">Even</button>
+            </div>
+            <p class="text-lg mt-4">Enter your finger count for toss (0-10):</p>
+            <input type="number" id="tossInput" class="input-field" placeholder="0-10" min="0" max="10">
+            <button id="tossPlayBtn" class="btn btn-primary">Toss!</button>
+        </div>
+
+        <!-- Toss Result Screen -->
+        <div id="tossResultScreen" class="hidden flex flex-col gap-4">
+            <p class="text-2xl font-semibold text-white" id="tossResultMessage"></p>
+            <p class="text-lg" id="tossDetailsMessage"></p>
+            <button id="proceedToChoicesBtn" class="btn btn-primary">Proceed</button>
+        </div>
+
+        <!-- Player Game Choices Screen -->
+        <div id="playerChoicesScreen" class="hidden flex flex-col gap-4">
+            <p class="text-lg">Choose your game mode:</p>
+            <div class="flex justify-center gap-4 flex-col-sm">
+                <button id="chooseNormalModeBtn" class="btn btn-primary">Normal</button>
+                <button id="chooseCrazyModeBtn" class="btn btn-primary">Crazy</button>
+            </div>
+            <p class="text-lg mt-4">Choose to Bat or Bowl:</p>
+            <div class="flex justify-center gap-4 flex-col-sm">
+                <button id="chooseBattingBtn" class="btn btn-primary">Batting</button>
+                <button id="chooseBowlingBtn" class="btn btn-primary">Bowling</button>
+            </div>
+            <button id="confirmChoicesBtn" class="btn btn-primary mt-4 hidden">Confirm Choices</button>
+        </div>
+
+        <!-- Computer Choices Confirmation Screen -->
+        <div id="computerChoicesScreen" class="hidden flex flex-col gap-4">
+            <p class="text-lg" id="computerChosenMessage"></p>
+            <button id="startInningsFromComputerBtn" class="btn btn-primary">Start Innings</button>
+        </div>
+
+        <!-- Gameplay Screen -->
+        <div id="gameplayScreen" class="hidden flex flex-col gap-4">
+            <p class="text-xl font-semibold text-white" id="inningsHeader"></p>
+            <p class="text-lg" id="targetMessage"></p>
+            <p class="text-lg" id="currentInningMessage"></p>
+            <p class="text-lg" id="computerPlayDisplay"></p>
+
+            <!-- Current Batter's Score Display -->
+            <div class="text-xl font-bold mt-2">
+                Current Batter's Score: <span id="currentBatterScoreDisplay" class="current-batter-score-display">0</span>
+            </div>
+
+            <!-- Cricket Balls for Number Input -->
+            <div id="numberButtons" class="cricket-ball-container">
+                <!-- Balls will be dynamically inserted here by JavaScript -->
+            </div>
+
+            <div class="mt-4 flex justify-between items-center px-4">
+                <div class="text-left">
+                    <p class="text-sm">Your Overall Score:</p>
+                    <p class="score-display" id="playerScoreDisplay">0</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm">Computer Overall Score:</p>
+                    <p class="score-display computer-score-display" id="computerScoreDisplay">0</p>
+                </div>
+            </div>
+            <p class="text-sm" id="gameplayStatusMessage"></p>
+        </div>
+
+        <!-- Innings Break Screen -->
+        <div id="inningsBreakScreen" class="hidden flex flex-col gap-4">
+            <p class="text-2xl font-semibold text-white" id="inningsBreakMessage"></p>
+            <p class="text-lg" id="inningsBreakScore"></p>
+            <p class="text-xl font-semibold text-white" id="inningsBreakTarget"></p>
+            <button id="startSecondInningsBtn" class="btn btn-primary">Start Second Innings</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="hidden flex flex-col gap-4">
+            <p class="text-3xl font-extrabold text-white" id="finalResultHeader"></p>
+            <p class="text-lg" id="finalScoresSummary"></p>
+            <button id="restartGameBtn" class="btn btn-primary">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const splashScreen = document.getElementById('splashScreen');
+        const playGameBtn = document.getElementById('playGameBtn');
+        const gameContainer = document.querySelector('.game-container');
+
+        const topMessage = document.getElementById('topMessage');
+
+        const tossScreen = document.getElementById('tossScreen');
+        const tossOddBtn = document.getElementById('tossOddBtn');
+        const tossEvenBtn = document.getElementById('tossEvenBtn');
+        const tossInput = document.getElementById('tossInput');
+        const tossPlayBtn = document.getElementById('tossPlayBtn');
+
+        const tossResultScreen = document.getElementById('tossResultScreen');
+        const tossResultMessage = document.getElementById('tossResultMessage');
+        const tossDetailsMessage = document.getElementById('tossDetailsMessage');
+        const proceedToChoicesBtn = document.getElementById('proceedToChoicesBtn');
+
+        const playerChoicesScreen = document.getElementById('playerChoicesScreen');
+        const chooseNormalModeBtn = document.getElementById('chooseNormalModeBtn');
+        const chooseCrazyModeBtn = document.getElementById('chooseCrazyModeBtn');
+        const chooseBattingBtn = document.getElementById('chooseBattingBtn');
+        const chooseBowlingBtn = document.getElementById('chooseBowlingBtn');
+        const confirmChoicesBtn = document.getElementById('confirmChoicesBtn');
+
+        const computerChoicesScreen = document.getElementById('computerChoicesScreen');
+        const computerChosenMessage = document.getElementById('computerChosenMessage');
+        const startInningsFromComputerBtn = document.getElementById('startInningsFromComputerBtn');
+
+        const gameplayScreen = document.getElementById('gameplayScreen');
+        const inningsHeader = document.getElementById('inningsHeader');
+        const targetMessage = document.getElementById('targetMessage');
+        const currentInningMessage = document.getElementById('currentInningMessage');
+        const computerPlayDisplay = document.getElementById('computerPlayDisplay');
+        const numberButtonsContainer = document.getElementById('numberButtons');
+        const playerScoreDisplay = document.getElementById('playerScoreDisplay');
+        const computerScoreDisplay = document.getElementById('computerScoreDisplay');
+        const gameplayStatusMessage = document.getElementById('gameplayStatusMessage');
+        const currentBatterScoreDisplay = document.getElementById('currentBatterScoreDisplay');
+
+        const inningsBreakScreen = document.getElementById('inningsBreakScreen');
+        const inningsBreakMessage = document.getElementById('inningsBreakMessage');
+        const inningsBreakScore = document.getElementById('inningsBreakScore');
+        const inningsBreakTarget = document.getElementById('inningsBreakTarget');
+        const startSecondInningsBtn = document.getElementById('startSecondInningsBtn');
+
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalResultHeader = document.getElementById('finalResultHeader');
+        const finalScoresSummary = document.getElementById('finalScoresSummary');
+        const restartGameBtn = document.getElementById('restartGameBtn');
+
+        // --- Game State Variables ---
+        let gameMode = ''; // 'Normal' or 'Crazy'
+        let tossWinner = ''; // 'You' or 'Computer'
+        let gameTypeChoiceByTossWinner = ''; // 'Batting' or 'Bowling' (chosen by the toss winner)
+
+        let currentPlayerScore = 0; // Score of the player currently batting in the CURRENT innings
+        let playerOverallScore = 0; // Your total score across innings
+        let computerOverallScore = 0; // Computer's total score across innings
+
+        let currentInning = 1; // 1 or 2
+        let target = -1; // Target for second innings
+
+        let playerTossChoice = ''; // 'ODD' or 'EVEN'
+        let playerTossFinger = -1;
+
+        let playerIsBatting = false; // True if 'You' are batting, false if 'Computer' is batting in the current innings
+        let currentPlayerInningRole = ''; // 'Batting' or 'Bowling' for the current player 'You'
+
+        // --- Helper Functions ---
+
+        /**
+         * Generates a random integer between min (inclusive) and max (inclusive).
+         * @param {number} min
+         * @param {number} max
+         * @returns {number}
+         */
+        function getRandomInt(min, max) {
+            min = Math.ceil(min);
+            max = Math.floor(max);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Shows the specified screen and hides all others, including the game container itself
+         * if the splash screen is shown.
+         * @param {HTMLElement} screenToShow
+         */
+        function showScreen(screenToShow) {
+            const allScreens = [
+                tossScreen, tossResultScreen, playerChoicesScreen,
+                computerChoicesScreen, gameplayScreen, inningsBreakScreen, gameOverScreen
+            ];
+            allScreens.forEach(screen => screen.classList.add('hidden'));
+
+            if (screenToShow === splashScreen) {
+                splashScreen.classList.remove('hidden');
+                gameContainer.classList.add('hidden'); // Hide the main game content
+            } else {
+                splashScreen.classList.add('hidden');
+                gameContainer.classList.remove('hidden'); // Show the main game content
+                screenToShow.classList.remove('hidden');
+            }
+            topMessage.textContent = ''; // Clear top message on screen change
+        }
+
+        /**
+         * Validates a number input from an element.
+         * @param {HTMLInputElement} inputElement
+         * @param {number} min
+         * @param {number} max
+         * @returns {number | null} Valid number or null if invalid.
+         */
+        function getValidInput(inputElement, min, max) {
+            const value = parseInt(inputElement.value);
+            if (isNaN(value) || value < min || value > max) {
+                topMessage.textContent = `Invalid input. Please enter a number between ${min} and ${max}.`;
+                inputElement.value = ''; // Clear invalid input
+                return null;
+            }
+            topMessage.textContent = ''; // Clear previous error message
+            return value;
+        }
+
+        /**
+         * Updates all score displays on the gameplay screen.
+         */
+        function updateScoreDisplays() {
+            playerScoreDisplay.textContent = playerOverallScore;
+            computerScoreDisplay.textContent = computerOverallScore;
+            // Update current batter's score for the current innings
+            currentBatterScoreDisplay.textContent = currentPlayerScore;
+        }
+
+        /**
+         * Generates and appends the clickable number balls to the gameplay screen.
+         */
+        function generateNumberBalls() {
+            numberButtonsContainer.innerHTML = ''; // Clear any existing balls
+            for (let i = 1; i <= 10; i++) {
+                const ball = document.createElement('div');
+                ball.classList.add('cricket-ball');
+                ball.textContent = i;
+                ball.dataset.number = i; // Store the number as a data attribute
+                ball.addEventListener('click', () => playTurn(i)); // Pass the number directly
+                numberButtonsContainer.appendChild(ball);
+            }
+        }
+
+        /**
+         * Enables or disables the number balls.
+         * @param {boolean} enable
+         */
+        function toggleNumberBalls(enable) {
+            const balls = numberButtonsContainer.querySelectorAll('.cricket-ball');
+            balls.forEach(ball => {
+                if (enable) {
+                    ball.classList.remove('disabled');
+                    ball.style.pointerEvents = 'auto';
+                } else {
+                    ball.classList.add('disabled');
+                    ball.style.pointerEvents = 'none'; // Disable click events
+                }
+            });
+        }
+
+
+        // --- Game Flow Functions ---
+
+        /**
+         * Initializes game state. This is called on fresh start or restart.
+         */
+        function initializeGame() {
+            gameMode = '';
+            tossWinner = '';
+            gameTypeChoiceByTossWinner = '';
+            currentPlayerScore = 0;
+            playerOverallScore = 0;
+            computerOverallScore = 0;
+            currentInning = 1;
+            target = -1;
+            playerTossChoice = '';
+            playerTossFinger = -1;
+            playerIsBatting = false;
+            currentPlayerInningRole = '';
+
+            tossInput.value = ''; // Clear toss input
+            updateScoreDisplays(); // Reset scores visually (including current batter's)
+            computerPlayDisplay.textContent = ''; // Clear computer's previous play
+            gameplayStatusMessage.textContent = ''; // Clear previous status messages
+        }
+
+
+        /**
+         * Starts the game by showing the toss screen after splash screen.
+         */
+        function showTossScreen() {
+            initializeGame(); // Reset game state
+            showScreen(tossScreen);
+            topMessage.textContent = 'Welcome to HaNd CrIcKeT 2.21v! Let\'s play a match.';
+        }
+
+
+        /**
+         * Handles the player's odd/even choice for the toss.
+         * @param {string} choice 'ODD' or 'EVEN'
+         */
+        function handleTossOddEvenChoice(choice) {
+            playerTossChoice = choice;
+            topMessage.textContent = `You chose ${choice}. Now enter your finger count.`;
+        }
+
+        /**
+         * Handles the player's finger count input for the toss and determines the winner.
+         */
+        function handleTossPlay() {
+            if (!playerTossChoice) {
+                topMessage.textContent = 'Please choose Odd or Even first.';
+                return;
+            }
+
+            const playerFingerCount = getValidInput(tossInput, 0, 10);
+            if (playerFingerCount === null) return;
+            playerTossFinger = playerFingerCount;
+
+            const computerFingerCount = getRandomInt(0, 10);
+            const totalSum = playerFingerCount + computerFingerCount;
+            const isTotalEven = (totalSum % 2 === 0);
+
+            let tossResultText = '';
+            let playerWonToss = false;
+
+            if (isTotalEven && playerTossChoice === 'EVEN') {
+                playerWonToss = true;
+                tossResultText = "It's an Even!";
+            } else if (!isTotalEven && playerTossChoice === 'ODD') {
+                playerWonToss = true;
+                tossResultText = "It's an Odd!";
+            } else {
+                if (isTotalEven) {
+                    tossResultText = "It's an Even!";
+                } else {
+                    tossResultText = "It's an Odd!";
+                }
+            }
+
+            tossResultMessage.textContent = tossResultText;
+            tossDetailsMessage.textContent = `You put: ${playerFingerCount}, Computer put: ${computerFingerCount}. Total sum: ${totalSum}.`;
+
+            if (playerWonToss) {
+                tossWinner = 'You';
+                tossResultMessage.textContent += " You won the toss!";
+            } else {
+                tossWinner = 'Computer';
+                tossResultMessage.textContent += " Computer won the toss!";
+            }
+            showScreen(tossResultScreen);
+        }
+
+        /**
+         * Proceeds after toss result, either to player choices or computer choices.
+         */
+        function proceedToGameChoices() {
+            if (tossWinner === 'You') {
+                gameMode = ''; // Reset selection
+                gameTypeChoiceByTossWinner = ''; // Reset selection
+                confirmChoicesBtn.classList.add('hidden'); // Hide until valid choices are made
+                // Reset button styles
+                chooseNormalModeBtn.classList.remove('btn-secondary');
+                chooseNormalModeBtn.classList.add('btn-primary');
+                chooseCrazyModeBtn.classList.remove('btn-secondary');
+                chooseCrazyModeBtn.classList.add('btn-primary');
+                chooseBattingBtn.classList.remove('btn-secondary');
+                chooseBattingBtn.classList.add('btn-primary');
+                chooseBowlingBtn.classList.remove('btn-secondary');
+                chooseBowlingBtn.classList.add('btn-primary');
+
+                showScreen(playerChoicesScreen);
+                topMessage.textContent = 'You won the toss! Choose your game mode and whether to Bat or Bowl.';
+            } else {
+                computerMakesGameChoices();
+            }
+        }
+
+        /**
+         * Allows player to select game mode.
+         * @param {string} mode 'Normal' or 'Crazy'
+         */
+        function selectPlayerGameMode(mode) {
+            gameMode = mode;
+            // Visual feedback for selection
+            chooseNormalModeBtn.classList.toggle('btn-secondary', mode !== 'Normal');
+            chooseNormalModeBtn.classList.toggle('btn-primary', mode === 'Normal');
+            chooseCrazyModeBtn.classList.toggle('btn-secondary', mode !== 'Crazy');
+            chooseCrazyModeBtn.classList.toggle('btn-primary', mode === 'Crazy');
+            checkPlayerChoicesMade();
+        }
+
+        /**
+         * Allows player to select batting or bowling.
+         * @param {string} type 'Batting' or 'Bowling'
+         */
+        function selectPlayerGameType(type) {
+            gameTypeChoiceByTossWinner = type;
+            // Visual feedback for selection
+            chooseBattingBtn.classList.toggle('btn-secondary', type !== 'Batting');
+            chooseBattingBtn.classList.toggle('btn-primary', type === 'Batting');
+            chooseBowlingBtn.classList.toggle('btn-secondary', type !== 'Bowling');
+            chooseBowlingBtn.classList.toggle('btn-primary', type === 'Bowling');
+            checkPlayerChoicesMade();
+        }
+
+        /**
+         * Checks if both player choices are made and enables confirm button.
+         */
+        function checkPlayerChoicesMade() {
+            if (gameMode && gameTypeChoiceByTossWinner) {
+                confirmChoicesBtn.classList.remove('hidden');
+                topMessage.textContent = `You selected ${gameMode} mode and to ${gameTypeChoiceByTossWinner}. Confirm your choices.`;
+            } else {
+                confirmChoicesBtn.classList.add('hidden');
+                topMessage.textContent = 'Please choose both a mode and an action.';
+            }
+        }
+
+        /**
+         * Confirms player's choices and starts the first innings.
+         */
+        function confirmPlayerChoices() {
+            if (gameMode && gameTypeChoiceByTossWinner) {
+                startFirstInnings();
+            } else {
+                topMessage.textContent = 'Please make both mode and Bat/Bowl choices.';
+            }
+        }
+
+        /**
+         * Computer randomly makes its game mode and bat/bowl choices.
+         */
+        function computerMakesGameChoices() {
+            gameMode = getRandomInt(0, 1) === 0 ? 'Normal' : 'Crazy';
+            gameTypeChoiceByTossWinner = getRandomInt(0, 1) === 0 ? 'Batting' : 'Bowling';
+
+            computerChosenMessage.textContent = `Computer chose ${gameMode} mode and to ${gameTypeChoiceByTossWinner}!`;
+            showScreen(computerChoicesScreen);
+        }
+
+        /**
+         * Starts the first innings based on the toss winner's choice.
+         */
+        function startFirstInnings() {
+            currentPlayerScore = 0; // Score for the current innings starts at 0
+            currentInning = 1;
+            target = -1; // No target for first innings
+
+            // Determine who is batting/bowling for the current innings based on toss winner's choice
+            if ((tossWinner === 'You' && gameTypeChoiceByTossWinner === 'Batting') ||
+                (tossWinner === 'Computer' && gameTypeChoiceByTossWinner === 'Bowling')) {
+                playerIsBatting = true; // You are batting
+                currentPlayerInningRole = 'Batting'; // Your role is batting
+            } else {
+                playerIsBatting = false; // Computer is batting
+                currentPlayerInningRole = 'Bowling'; // Your role is bowling
+            }
+
+            updateGameplayScreen();
+            showScreen(gameplayScreen);
+            toggleNumberBalls(true); // Enable number balls
+            gameplayStatusMessage.textContent = ''; // Clear status message for new innings
+            computerPlayDisplay.textContent = ''; // Clear computer's previous play
+        }
+
+        /**
+         * Updates the gameplay screen UI elements based on current game state.
+         */
+        function updateGameplayScreen() {
+            inningsHeader.textContent = `Innings ${currentInning}`;
+            targetMessage.textContent = target !== -1 ? `Target: ${target} runs` : '';
+            currentInningMessage.textContent = playerIsBatting ? "Your turn to Bat! Click a ball (1-10)." : "Your turn to Bowl! Click a ball (1-10).";
+
+            updateScoreDisplays(); // Call this to update all scores, including current batter's
+        }
+
+        /**
+         * Plays a single turn of the game.
+         * @param {number} playerNumber The number chosen by the player (from clickable ball).
+         */
+        function playTurn(playerNumber) {
+            toggleNumberBalls(false); // Temporarily disable balls during a turn
+            gameplayStatusMessage.textContent = '...Processing turn...'; // Provide feedback
+
+            const computerNumber = getRandomInt(1, 10);
+            computerPlayDisplay.textContent = `Computer put: ${computerNumber}`;
+
+            let playerOut = false;
+            let currentRunScored = 0;
+            let messageAddition = ''; // For Crazy mode specific messages
+
+            if (gameMode === 'Normal') {
+                if (playerNumber === computerNumber) {
+                    playerOut = true;
+                } else {
+                    currentRunScored = playerIsBatting ? playerNumber : computerNumber;
+                }
+            } else { // Crazy Mode
+                if (Math.abs(playerNumber - computerNumber) === 1) { // If numbers are one apart
+                    playerOut = true;
+                    messageAddition = ' (Crazy Rule: Numbers 1 apart)';
+                } else if (playerNumber === computerNumber) { // If numbers are same (Crazy rule: multiply)
+                    currentRunScored = playerNumber * computerNumber;
+                    messageAddition = ' (Crazy Rule: Numbers same, runs multiplied)';
+                } else { // Neither out nor same, just add (Crazy rule: normal add)
+                    currentRunScored = playerIsBatting ? playerNumber : computerNumber;
+                    messageAddition = ' (Crazy Rule: Normal add)';
+                }
+            }
+
+            // Update current innings score based on who is batting
+            currentPlayerScore += currentRunScored;
+            currentBatterScoreDisplay.textContent = currentPlayerScore; // Update display immediately
+
+            if (playerOut) {
+                gameplayStatusMessage.textContent = playerIsBatting ?
+                    `You put ${playerNumber}, Computer put ${computerNumber}. You are OUT!${messageAddition}` :
+                    `You put ${playerNumber}, Computer put ${computerNumber}. Computer is OUT!${messageAddition}`;
+
+                // Assign current innings score to overall score of the batter
+                if (playerIsBatting) {
+                    playerOverallScore = currentPlayerScore;
+                } else {
+                    computerOverallScore = currentPlayerScore;
+                }
+                updateScoreDisplays(); // Update overall scores
+                setTimeout(endCurrentInnings, 2000); // Small delay before ending innings
+            } else {
+                gameplayStatusMessage.textContent = `${playerIsBatting ? 'You' : 'Computer'} scored ${currentRunScored} runs. Current score for ${playerIsBatting ? 'your side' : 'computer\'s side'}: ${currentPlayerScore}. ${messageAddition}`;
+
+                // Check for target in second innings
+                if (currentInning === 2 && currentPlayerScore >= target) {
+                    gameplayStatusMessage.textContent = `${playerIsBatting ? 'Your side' : 'Computer\'s side'} reached the target of ${target - 1} runs!`;
+                    // Assign overall score based on who was batting when target was met
+                    if (playerIsBatting) {
+                        playerOverallScore = currentPlayerScore;
+                    } else {
+                        computerOverallScore = currentPlayerScore;
+                    }
+                    updateScoreDisplays();
+                    setTimeout(endGame, 2000);
+                } else {
+                    // Re-enable balls for next turn after a short delay
+                    setTimeout(() => {
+                        toggleNumberBalls(true);
+                        gameplayStatusMessage.textContent = currentInningMessage.textContent; // Reset status message
+                    }, 1000);
+                }
+            }
+        }
+
+        /**
+         * Ends the current innings and transitions to break screen or game over.
+         */
+        function endCurrentInnings() {
+            toggleNumberBalls(false); // Ensure balls are disabled
+
+            if (currentInning === 1) {
+                // Overall score for the 1st innings batter is the currentPlayerScore
+                if (playerIsBatting) { // You batted first innings
+                    playerOverallScore = currentPlayerScore;
+                } else { // Computer batted first innings
+                    computerOverallScore = currentPlayerScore;
+                }
+
+                target = currentPlayerScore + 1; // Target for second innings is 1 more than previous score
+                inningsBreakMessage.textContent = `--- End of 1st Innings ---`;
+                inningsBreakScore.textContent = `${playerIsBatting ? 'Your Score (1st Innings)' : 'Computer Score (1st Innings)'}: ${currentPlayerScore} runs.`;
+                inningsBreakTarget.textContent = `Target for ${playerIsBatting ? 'Computer' : 'You'}: ${target} runs.`;
+
+                // Swap roles for second innings
+                playerIsBatting = !playerIsBatting;
+                currentPlayerInningRole = playerIsBatting ? 'Batting' : 'Bowling';
+                currentInning = 2;
+                currentPlayerScore = 0; // Reset current innings score for the new batting player
+
+                showScreen(inningsBreakScreen);
+                updateScoreDisplays(); // Update all scores on break screen
+            } else {
+                // This means an 'out' happened in 2nd innings without reaching target.
+                // Overall scores are already set by playTurn() when out happens.
+                endGame();
+            }
+        }
+
+        /**
+         * Starts the second innings.
+         */
+        function startSecondInnings() {
+            updateGameplayScreen();
+            showScreen(gameplayScreen);
+            toggleNumberBalls(true); // Enable number balls for second innings
+            gameplayStatusMessage.textContent = ''; // Clear previous status
+            computerPlayDisplay.textContent = ''; // Clear previous computer play
+        }
+
+        /**
+         * Ends the game and displays final results.
+         */
+        function endGame() {
+            showScreen(gameOverScreen);
+            // playerOverallScore and computerOverallScore already hold the correct final scores
+
+            finalScoresSummary.textContent = `Your Final Score: ${playerOverallScore} | Computer's Final Score: ${computerOverallScore}`;
+
+            if (playerOverallScore > computerOverallScore) {
+                finalResultHeader.textContent = "🥳 You WIN the match! 🎉";
+            } else if (computerOverallScore > playerOverallScore) {
+                finalResultHeader.textContent = "😞 Computer WINS the match. Better luck next time!";
+            } else {
+                finalResultHeader.textContent = "🤝 It's a TIE! 🤝";
+            }
+        }
+
+        // --- Event Listeners ---
+        playGameBtn.addEventListener('click', showTossScreen);
+
+        tossOddBtn.addEventListener('click', () => handleTossOddEvenChoice('ODD'));
+        tossEvenBtn.addEventListener('click', () => handleTossOddEvenChoice('EVEN'));
+        tossPlayBtn.addEventListener('click', handleTossPlay);
+        tossInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleTossPlay();
+        });
+
+        proceedToChoicesBtn.addEventListener('click', proceedToGameChoices);
+
+        chooseNormalModeBtn.addEventListener('click', () => selectPlayerGameMode('Normal'));
+        chooseCrazyModeBtn.addEventListener('click', () => selectPlayerGameMode('Crazy'));
+        chooseBattingBtn.addEventListener('click', () => selectPlayerGameType('Batting'));
+        chooseBowlingBtn.addEventListener('click', () => selectPlayerGameType('Bowling'));
+        confirmChoicesBtn.addEventListener('click', confirmPlayerChoices);
+
+        startInningsFromComputerBtn.addEventListener('click', startFirstInnings);
+
+        startSecondInningsBtn.addEventListener('click', startSecondInnings);
+        restartGameBtn.addEventListener('click', () => {
+            initializeGame();
+            showScreen(splashScreen);
+        });
+
+        // --- Initialize the game on page load ---
+        window.onload = () => {
+            generateNumberBalls();
+            showScreen(splashScreen);
+        };
+    </script>
+</body>
+</html>
